@@ -54,6 +54,9 @@ class Email_Validator_Btv_Admin {
 
 		add_action('admin_menu', array($this, 'create_settings_page'));
         add_action('admin_init', array($this, 'register_settings'));
+		
+		//Settings link
+		add_filter('plugin_action_links_' . plugin_basename(__FILE__), 'add_settings_link');
 	}
 
 	/**
@@ -158,6 +161,13 @@ public function settings_section_callback() {
 public function api_key_field_callback() {
     $api_key = get_option('email_validator_btv_api_key');
     echo '<input type="text" id="email_validator_btv_api_key" name="email_validator_btv_api_key" value="' . esc_attr($api_key) . '" />';
+}
+
+//Settings link
+public function add_settings_link($links) {
+    $settings_link = '<a href="options-general.php?page=email-validator-btv-settings">Settings</a>';
+    array_unshift($links, $settings_link);
+    return $links;
 }
 
 }
