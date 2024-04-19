@@ -78,7 +78,8 @@ class Email_Validator_Btv {
 		$this->set_locale();
 		$this->define_admin_hooks();
 		$this->define_public_hooks();
-		$this->validate();
+		// $this->validate();
+		add_action('init', array($this, 'init_plugin'));
 
 	}
 
@@ -216,43 +217,65 @@ class Email_Validator_Btv {
 		return $this->version;
 	}
 
-	public function validate() {
-		if(class_exists('GFAPI')) {
-			 add_filter( 'gform_field_validation', function ( $result, $value, $form, $field ) {
-				if ( $field->get_input_type() === 'email' && $result['is_valid'] ) {
-			
+	/**
+	 * Verify emails with Email List Verify API
+	 *
+	 * @since     1.0.0
+	 * @return    string    API Response
+	 */
+
+	private function verify_email($key, $email) {
+		$query_args = array(
+			'secret' => $key,
+			'email' => $email,
+			'timeout' => 15
+		);
+		$request_url = add_query_arg($query_args, 'https://apps.emaillistverify.com/api/verifyEmail');
+	
+		$ch = curl_init();
+		curl_setopt($ch, CURLOPT_URL, $request_url);
+		curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+		curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+		curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+	
+		$response = curl_exec($ch);
+		curl_close($ch);
+	
+		return $response;
+	}
+	
+	public function validate($api_key) {
+		if (empty($api_key)) {
+			echo "Please provide Email List Verify API key in settings.";
+
+			add_filter('gform_field_validation', function ($result, $value, $form, $field) use ($api_key) {
+				$result['is_valid'] = true;
+				return $result;
+			}, 10, 4);
+		}
+
+		if (class_exists('GFAPI')) {
+			add_filter('gform_field_validation', function ($result, $value, $form, $field) use ($api_key) {
+				if ($field->get_input_type() === 'email' && $result['is_valid']) {
 					$email = $value;
-					$key = 'MyXfsOi1WGzLARyZoMjzB';
-					$query_args = array(
-						'secret' => $key,
-						'email' => $email,
-						'timeout' => 15
-					);
-			
-					$request_url = add_query_arg( $query_args, 'https://apps.emaillistverify.com/api/verifyEmail' );
-					echo $request_url;
-			
-					// True to submit, False to decline
-					//Code 200 returns ok = true, Code 401 returns email_disabled = false
-			
-					$ch = curl_init();
-					curl_setopt($ch, CURLOPT_URL, $request_url);
-					curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-					curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-					curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true );
-			
-					$response = curl_exec($ch);
-					echo $response;
-					curl_close($ch);
-			
+					$key = $api_key;
+					$response = $this->verify_email($key, $email);
 					if ($response !== 'ok') {
 						$result['is_valid'] = false;
 					}
 				}
-			  
 				return $result;
-			}, 10, 4 );
-			}
+			}, 10, 4);
+		}
 	}
+
+
+    public function init_plugin() {
+        // Retrieve API key from settings.
+        $api_key = get_option('email_validator_btv_api_key');
+
+        // Validate emails using the retrieved API key.
+            $this->validate($api_key);
+    }
 
 }
